@@ -29,7 +29,6 @@ async function scrapePricesFromUrl(url) {
             if (matchesKeyword) {
                 const fullText = $(element).text();
                 
-                // Narrow down to the closest specific item wrapper
                 const itemContainer = $(element).closest('li, .elementor-element, .prize-item, article') 
                     .length ? $(element).closest('li, .elementor-element, .prize-item, article') 
                     : $(element).parent();
@@ -37,7 +36,6 @@ async function scrapePricesFromUrl(url) {
                 let baseAmount = 0;
                 let isPriceFound = false;
 
-                // Special rule for "another go": look for price inside a <span> tag nearby
                 if (h4Text.includes('another go')) {
                     const spanText = $(element).find('span').text() || $(element).next('span').text() || itemContainer.find('span').text();
                     const spanMatch = spanText.match(/£\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2})?|[0-9]+(?:\.[0-9]{2})?)/);
@@ -48,7 +46,6 @@ async function scrapePricesFromUrl(url) {
                     }
                 }
 
-                // Fallback to standard regex across the h4 text if not found via span rule
                 if (!isPriceFound) {
                     const priceRegex = /£\s*([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+)(?:\.[0-9]{2})?/g;
                     const match = priceRegex.exec(fullText);
@@ -144,7 +141,13 @@ app.post('/api/scan', async (req, res) => {
     });
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-});
+// Local testing fallback vs Vercel serverless export
+if (process.env.NODE_ENV !== 'production') {
+    const PORT = process.env.PORT || 3000;
+    app.listen(PORT, () => {
+        console.log(`Server running on port ${PORT}`);
+    });
+}
+
+// Crucial for Vercel
+module.exports = app;
