@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Cash King Prize Pool</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .gold-gradient {
+            background: linear-gradient(135deg, #BF953F 0%, #FCF6BA 25%, #B38728 50%, #FBF5B7 75%, #AA771C 100%);
+        }
+        .gold-text {
+            background: linear-gradient(135deg, #BF953F 0%, #FCF6BA 25%, #B38728 50%, #FBF5B7 75%, #AA771C 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .gold-border {
+            border-image: linear-gradient(to right, #BF953F, #AA771C) 1;
+        }
+    </style>
+</head>
+<body class="bg-black text-slate-100 min-h-screen p-8 selection:bg-amber-500 selection:text-black">
+    <div class="max-w-3xl mx-auto space-y-6">
+        <header class="text-center space-y-2 pb-4 border-b border-amber-500/20">
+            <h1 class="text-4xl font-black tracking-wider gold-text uppercase drop-shadow-md">The Cash King Prize Pool</h1>
+            <p class="text-amber-200/70 text-sm">Paste your competition or product links below (one per line) to scan and add up all prices.</p>
+        </header>
+
+        <div class="bg-neutral-900/90 p-6 rounded-2xl border border-amber-500/30 shadow-2xl shadow-amber-950/20 space-y-4 backdrop-blur-md">
+            <div>
+                <label for="links" class="block text-sm font-semibold mb-2 text-amber-400 tracking-wide uppercase text-xs">Target URLs</label>
+                <textarea id="links" rows="6" class="w-full bg-black/85 border border-amber-500/40 rounded-xl p-3 text-sm text-amber-100 focus:ring-2 focus:ring-amber-500 focus:outline-none placeholder:text-neutral-600 transition-all shadow-inner" placeholder="https://thecashkings.co.uk/competition/luxury-all-inclusive-family-holiday/&#10;https://thecashkings.co.uk/competition/cashablanca/"></textarea>
+            </div>
+            <button onclick="scanLinks()" id="submitBtn" class="w-full gold-gradient hover:opacity-90 text-black font-black py-3 rounded-xl transition-all shadow-lg shadow-amber-600/20 uppercase tracking-wider text-sm cursor-pointer">
+                👑 Scan Links & Calculate Total
+            </button>
+        </div>
+
+        <div id="results" class="hidden space-y-4">
+            <div class="bg-neutral-900/90 p-6 rounded-2xl border border-amber-500/40 flex justify-between items-center shadow-xl shadow-amber-950/20 backdrop-blur-md">
+                <span class="text-lg font-bold text-amber-200 uppercase tracking-wide text-sm">Grand Total:</span>
+                <span id="grandTotal" class="text-4xl font-black gold-text drop-shadow">£0.00</span>
+            </div>
+
+            <div id="breakdown" class="space-y-3">
+                <!-- Individual link results injected here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function scanLinks() {
+            const rawText = document.getElementById('links').value;
+            const urls = rawText.split('\n').map(u => u.trim()).filter(u => u.length > 0);
+            
+            if (urls.length === 0) return alert('Please enter at least one URL.');
+
+            const btn = document.getElementById('submitBtn');
+            btn.disabled = true;
+            btn.textContent = '👑 Scanning pages...';
+
+            try {
+                const response = await fetch('http://localhost:3000/api/scan', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ urls })
+                });
+
+                const data = await response.json();
+                
+                document.getElementById('grandTotal').textContent = `£${data.grandTotal.toLocaleString('en-GB', { minimumFractionDigits: 2 })}`;
+                
+                const breakdownEl = document.getElementById('breakdown');
+                breakdownEl.innerHTML = '';
+
+                data.results.forEach(res => {
+                    const card = document.createElement('div');
+                    card.className = 'bg-neutral-900/90 p-5 rounded-2xl border border-amber-500/30 space-y-3 text-sm shadow-lg backdrop-blur-md';
+                    
+                    if (res.success) {
+                        const cashItems = res.prices.filter(p => !p.text.toLowerCase().includes('credit') && !p.text.toLowerCase().includes('another go'));
+                        const creditItems = res.prices.filter(p => p.text.toLowerCase().includes('credit') || p.text.toLowerCase().includes('another go'));
+
+                        // Calculate individual card totals for cash and credit sections
+                        const cashTotal = cashItems.reduce((sum, p) => sum + p.amount, 0);
+                        const creditTotal = creditItems.reduce((sum, p) => sum + p.amount, 0);
+
+                        function renderList(items) {
+                            if (items.length === 0) return '<span class="text-neutral-500 italic">None found</span>';
+                            return items.map(p => `
+                                <div class="flex justify-between items-center py-2 border-b border-amber-500/10 last:border-0">
+                                    <div class="pr-2 truncate">
+                                        <span class="text-amber-100/90 block truncate" title="${p.text}">"${p.text}"</span>
+                                        <span class="text-xs text-amber-400 font-semibold">Remaining: ${p.remainingText || '1/1'}</span>
+                                    </div>
+                                    <span class="font-bold text-emerald-400 whitespace-nowrap text-base">£${p.amount.toFixed(2)}</span>
+                                </div>
+                            `).join('');
+                        }
+
+                        card.innerHTML = `
+                            <div class="font-semibold text-amber-400 truncate text-xs tracking-wider uppercase">${res.url}</div>
+                            
+                            <div class="space-y-1">
+                                <div class="text-[11px] uppercase tracking-widest text-amber-300/70 font-bold">Cash Section</div>
+                                <div class="bg-black/60 p-3 rounded-xl border border-amber-500/20 space-y-1">
+                                    ${renderList(cashItems)}
+                                </div>
+                                <div class="flex justify-between items-center pt-2 px-1 text-xs font-bold text-amber-300">
+                                    <span>Cash Prize Pool:</span>
+                                    <span class="text-emerald-400 font-black text-sm">£${cashTotal.toFixed(2)}</span>
+                                </div>
+                            </div>
+
+                            <div class="space-y-1 pt-2">
+                                <div class="text-[11px] uppercase tracking-widest text-amber-300/70 font-bold">Credit / Alternative Section</div>
+                                <div class="bg-black/60 p-3 rounded-xl border border-amber-500/20 space-y-1">
+                                    ${renderList(creditItems)}
+                                </div>
+                                <div class="flex justify-between items-center pt-2 px-1 text-xs font-bold text-amber-300">
+                                    <span>Credit Pool:</span>
+                                    <span class="text-emerald-400 font-black text-sm">£${creditTotal.toFixed(2)}</span>
+                                </div>
+                            </div>
+
+                            <div class="flex justify-end pt-3 border-t border-amber-500/20 font-black text-amber-200 tracking-wide">
+                                Subtotal: <span class="text-emerald-400 ml-2">£${res.subtotal.toFixed(2)}</span>
+                            </div>
+                        `;
+                    } else {
+                        card.innerHTML = `
+                            <div class="font-medium text-red-400 truncate">${res.url}</div>
+                            <div class="text-red-300 text-xs">Error: ${res.error}</div>
+                        `;
+                    }
+                    breakdownEl.appendChild(card);
+                });
+
+                document.getElementById('results').classList.remove('hidden');
+            } catch (err) {
+                alert('Failed to connect to backend server.');
+                console.error(err);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '👑 Scan Links & Calculate Total';
+            }
+        }
+    </script>
+</body>
+</html>
